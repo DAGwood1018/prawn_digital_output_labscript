@@ -147,6 +147,7 @@ class PrawnDOWorker(Worker):
 
         return self.intf.status()
 
+    # TODO Only lets you manually control the first 4 outputs.
     def program_manual(self, front_panel_values):
         """Change output states in manual mode.
         
@@ -154,11 +155,13 @@ class PrawnDOWorker(Worker):
             dict: Output states after command execution.
         """
         value = self._dict_to_int(front_panel_values)
+        print(value)
         # send static state
         self.intf.send_command_ok(f'man {value:04x}')
         # confirm state set correctly
         resp = self.intf.send_command('gto')
 
+        print(self._int_to_dict(int(resp, 16)))
         return self._int_to_dict(int(resp, 16))
     
     def check_remote_values(self):
@@ -175,14 +178,12 @@ class PrawnDOWorker(Worker):
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
 
-        if fresh:
-            self.smart_cache = {'do_table':None, 'reps':None}
-
+        self.smart_cache = {'do_table': None, 'reps': None}
         with h5py.File(h5file, 'r') as hdf5_file:
             group = hdf5_file['devices'][device_name]
             if 'do_data' not in group:
                 # if no output command, return
-                return
+                return {}
             self.device_properties = labscript_utils.properties.get(
                 hdf5_file, device_name, "device_properties")
             do_table = group['do_data'][()]
@@ -193,54 +194,10 @@ class PrawnDOWorker(Worker):
         freq = self.device_properties['clock_frequency']
         self.intf.send_command_ok(f"clk {ext:d} {freq:.0f}")
 
-        # check if it is more efficient to fully refresh
-        if not fresh and self.smart_cache['do_table'] is not None:
-            total_inst = len(reps)
-            # get more convenient handles to smart cache arrays
-            curr_do = self.smart_cache['do_table']
-            curr_reps = self.smart_cache['reps']
-
-            # if arrays aren't of same shape, only compare up to smaller array size
-            n_curr = len(curr_reps)
-            n_new = len(reps)
-            if n_curr > n_new:
-                # technically don't need to reprogram current elements beyond end of new elements
-                new_inst = np.sum((curr_reps[:n_new] != reps) | (curr_do[:n_new] != do_table))
-            elif n_curr < n_new:
-                n_diff = n_new - n_curr
-                val_diffs = np.sum((curr_reps != reps[:n_curr]) | (curr_do != do_table[:n_curr]))
-                new_inst = val_diffs + n_diff
-            else:
-                new_inst = np.sum((curr_reps != reps) | (curr_do != do_table))
-
-            if new_inst / total_inst > 0.1:
-                fresh = True
-
-        # if fresh or not smart cache, program full table as a batch
-        # this is faster than going line by line
-        if fresh or self.smart_cache['do_table'] is None:
-            print('programming from scratch')
-            self.intf.send_command_ok('cls') # clear old program
-            self.intf.adm_batch(do_table, reps)
-            self.smart_cache['do_table'] = do_table
-            self.smart_cache['reps'] = reps
-        else:
-            print('incremental programming')
-            # only program table lines that have changed
-            for i, (output, rep) in enumerate(zip(do_table, reps)):
-                if i >= len(self.smart_cache['reps']):
-                    print(f'programming step {i}')
-                    self.intf.send_command_ok(f'set {i:x} {output:x} {rep:x}')
-                    self.smart_cache['do_table'][i] = output
-                    self.smart_cache['reps'][i] = rep
-
-                elif (self.smart_cache['do_table'][i] != output or
-                    self.smart_cache['reps'][i] != rep):
-
-                    print(f'programming step {i}')
-                    self.intf.send_command_ok(f'set {i:x} {output:x} {rep:x}')
-                    self.smart_cache['do_table'][i] = output
-                    self.smart_cache['reps'][i] = rep
+        self.intf.send_command_ok('cls')  # clear old program
+        self.intf.adm_batch(do_table, reps)
+        self.smart_cache['do_table'] = do_table
+        self.smart_cache['reps'] = reps
 
         final_values = self._int_to_dict(do_table[-1])
 
@@ -264,7 +221,7 @@ class PrawnDOWorker(Worker):
             elif i == 1000:
                 # program hasn't ended, probably bad triggering
                 # abort and raise an error
-                self.abort_buffered()
+                #self.abort_buffered()
                 raise LabscriptError(f'PrawnDO did not end with status {run_status:d}. Is triggering working?')
             elif run_status in [3,4,5]:
                 raise LabscriptError(f'PrawnDO returned status {run_status} in transition to manual')
@@ -277,8 +234,8 @@ class PrawnDOWorker(Worker):
         """
         self.intf.send_command_ok('abt')
         # loop until abort complete
-        while self.intf.status()[0] != 5:
-            time.sleep(0.5)
+        #while self.intf.status()[0] != 5:
+        #    time.sleep(0.5)
         return True
 
     def abort_transition_to_buffered(self):

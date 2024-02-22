@@ -1,6 +1,7 @@
 from blacs.device_base_class import DeviceTab
 
 class PrawnDOTab(DeviceTab):
+
     def initialise_GUI(self):
         do_prop = {}
         for i in range(0, 16):

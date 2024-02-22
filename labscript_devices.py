@@ -112,6 +112,7 @@ class PrawnDO(IntermediateDevice):
                  clock_frequency = 100e6,
                  external_clock = False,
                  **kwargs):
+
         """PrawnDO digital output device.
         
         This labscript device provides general purpose digital outputs
@@ -169,7 +170,8 @@ class PrawnDO(IntermediateDevice):
         if len(times) == 0:
             # no instructions, so return
             return
-        
+
+        # TODO Can this be modified to support ramping instructions?
         for output in outputs:
             # Retrieving the time series of each DigitalOut to be stored
             # as the output word for shifting to the pins
@@ -243,6 +245,7 @@ class PrawnDOTrig(TriggerableDevice):
                 # collecting/consolidating the times when they change
                 outputs = line.get_all_children()
                 times = line.get_update_times()
+                # Can this be modified to support ramping instructions?
                 for output in outputs:
                     # Retrieving the time series of each DigitalOut to be stored
                     # as the output word for shifting to the pins
