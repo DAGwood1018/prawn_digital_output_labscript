@@ -147,21 +147,23 @@ class PrawnDOWorker(Worker):
 
         return self.intf.status()
 
-    # TODO Only lets you manually control the first 4 outputs.
     def program_manual(self, front_panel_values):
         """Change output states in manual mode.
         
         Returns:
             dict: Output states after command execution.
         """
+
         value = self._dict_to_int(front_panel_values)
-        print(value)
+        
         # send static state
+        #print(f'man {value:b}')
         self.intf.send_command_ok(f'man {value:04x}')
+
         # confirm state set correctly
         resp = self.intf.send_command('gto')
 
-        print(self._int_to_dict(int(resp, 16)))
+        #print(self._int_to_dict(int(resp, 16)))
         return self._int_to_dict(int(resp, 16))
     
     def check_remote_values(self):
